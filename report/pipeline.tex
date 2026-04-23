@@ -1,0 +1,82 @@
+% Standalone TikZ pipeline figure -- included from report.tex
+\begin{tikzpicture}[
+    font=\footnotesize,
+    node distance = 3.5mm and 8mm,
+    every node/.style = {align=center},
+    data/.style   = {draw, trapezium, trapezium left angle=70, trapezium right angle=110,
+                     minimum width=26mm, minimum height=7mm, fill=blue!6,
+                     inner sep=1pt},
+    stage/.style  = {draw, rectangle, rounded corners=1.5pt, minimum width=38mm,
+                     minimum height=7mm, fill=orange!15, line width=0.4pt,
+                     inner sep=2pt},
+    meta/.style   = {draw, rectangle, rounded corners=6pt, fill=green!10,
+                     minimum width=22mm, minimum height=7mm, inner sep=2pt},
+    arr/.style    = {-Latex, thick},
+    kv/.style     = {font=\scriptsize\ttfamily, fill=white, inner sep=1pt},
+    group/.style  = {draw=gray!55, dashed, rounded corners, inner sep=2mm},
+    grouplabel/.style = {font=\small\bfseries, rotate=90, inner sep=1pt,
+                         text=gray!55!black},
+]
+
+% ---------------- Input ----------------
+\node[data] (in) {reviews\_devset.json\\\scriptsize (or full 56\,GB corpus on HDFS)};
+
+% ---------------- Stage 1 ----------------
+\node[stage, below=of in] (s1map)  {\textbf{Stage 1 -- Mapper}\\parse, tokenize,\\lower-case, stop-word\\filter, dedupe};
+\node[stage, below=of s1map] (s1comb) {\textbf{Combiner (= reducer)}\\sums partial counts};
+\node[stage, below=of s1comb] (s1red) {\textbf{Stage 1 -- Reducer}\\final sum per key};
+
+\begin{pgfonlayer}{background}
+\node[group, fit=(s1map)(s1comb)(s1red)] (s1) {};
+\node[grouplabel, anchor=south] at (s1.west) {Job~1: \texttt{chi\_count.py}};
+\end{pgfonlayer}
+
+% ---------------- Meta side-file (placed between the two groups) ----------------
+\node[meta, right=28mm of s1red, yshift=-12mm] (meta) {\texttt{meta.tsv}\\\scriptsize $n_c$ per $c$,\ $N$};
+
+% ---------------- Stage 2 ----------------
+\node[stage, below=18mm of s1red] (s2m1) {\textbf{Stage 2.1 -- Mapper}\\re-key by \emph{term}};
+\node[stage, below=of s2m1]      (s2r1) {\textbf{Stage 2.1 -- Reducer}\\compute $\chi^2(t,c)$\\uses \texttt{meta.tsv}};
+\node[stage, below=of s2r1]      (s2r2) {\textbf{Stage 2.2 -- Reducer}\\heap-based top-75\\per category};
+\node[stage, below=of s2r2]      (s2r3) {\textbf{Stage 2.3 -- Reducer (1)}\\sort cats alphabetically,\\build merged dict};
+
+\begin{pgfonlayer}{background}
+\node[group, fit=(s2m1)(s2r1)(s2r2)(s2r3)] (s2) {};
+\node[grouplabel, anchor=south] at (s2.west) {Job~2: \texttt{chi\_stats.py} (3 MRSteps)};
+\end{pgfonlayer}
+
+% ---------------- Output ----------------
+\node[data, below=of s2r3, fill=blue!10] (out) {\texttt{output.txt}\\\scriptsize 22 category lines + merged dict};
+
+% ---------------- Arrows with <k,v> labels ----------------
+\draw[arr] (in) -- (s1map)
+    node[kv, midway, right]{<offset, JSON-line>};
+
+\draw[arr] (s1map) -- (s1comb)
+    node[kv, midway, right]{("t",t,c)->1 \ ("c",c)->1 \ ("n",)->1};
+
+\draw[arr] (s1comb) -- (s1red)
+    node[kv, midway, right]{same keys, partial sums};
+
+\draw[arr] (s1red.east) -- (meta.west)
+    node[kv, midway, above]{("c",c)->n\_c,\ \ ("n",)->N};
+
+\draw[arr] (s1red) -- (s2m1)
+    node[kv, midway, right]{("t",t,c)->A(t,c)};
+
+\draw[arr] (s2m1) -- (s2r1)
+    node[kv, midway, right]{t -> (c, A)};
+
+\draw[arr] (meta.south) |- (s2r1.east)
+    node[kv, pos=0.8, above]{side-loaded};
+
+\draw[arr] (s2r1) -- (s2r2)
+    node[kv, midway, right]{c -> (t, $\chi^2$)};
+
+\draw[arr] (s2r2) -- (s2r3)
+    node[kv, midway, right]{"ALL" -> (c, line, top-terms)};
+
+\draw[arr] (s2r3) -- (out)
+    node[kv, midway, right]{22 category lines + merged dict};
+
+\end{tikzpicture}

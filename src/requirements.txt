@@ -1,0 +1,8 @@
+# Dependencies for the chi-square MapReduce pipeline.
+# Python 3.8 or newer is assumed.
+
+mrjob>=0.7,<0.8
+
+# Needed on Python 3.12+, where distutils was removed but mrjob still
+# imports it. setuptools provides a drop-in distutils shim.
+setuptools>=60; python_version >= "3.12"
