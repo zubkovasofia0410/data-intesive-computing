@@ -26,7 +26,6 @@ def clean_output(path: Path):
     """
     Remove old Spark output directory if it exists.
     """
-
     if path.exists():
         if path.is_dir():
             shutil.rmtree(path)
